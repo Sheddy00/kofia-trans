@@ -1,0 +1,403 @@
+openapi: 3.0.3
+info:
+  title: Kofia Trans API
+  version: 0.0.1
+  description: |
+    API de gestion des courses, chauffeurs et revenus de la coopérative de transport Kofia Trans.
+
+    Toutes les requêtes doivent fournir l'en-tête `x-api-key`. Sans clé valide, l'API répond `403`.
+  license:
+    name: Proprietary
+    url: https://github.com/Sheddy00/kofia-trans
+servers:
+  - url: http://localhost:8081
+    description: Local
+security:
+  - ApiKeyAuth: []
+tags:
+  - name: Trips
+    description: Courses
+  - name: Drivers
+    description: Revenus et statistiques par chauffeur
+  - name: Statistics
+    description: Statistiques globales
+
+paths:
+  /trips:
+    get:
+      tags: [Trips]
+      operationId: findTrips
+      summary: Lister les courses
+      description: |
+        Sans filtre, retourne toutes les courses. `from` et `to` doivent être fournis ensemble.
+        Combinés avec `driverId`, ils filtrent les courses du chauffeur sur la période (bornes incluses).
+      parameters:
+        - name: driverId
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/FromOptional'
+        - $ref: '#/components/parameters/ToOptional'
+      responses:
+        '200':
+          description: Liste des courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Trip'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /trips/{tripId}:
+    put:
+      tags: [Trips]
+      operationId: upsertTrip
+      summary: Créer ou remplacer une course
+      description: La course est enregistrée avec le statut `COMPLETED`.
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripUpsertRequest'
+      responses:
+        '200':
+          description: Course existante mise à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+        '201':
+          description: Course créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /trips/{tripId}/status:
+    put:
+      tags: [Trips]
+      operationId: updateTripStatus
+      summary: Modifier le statut d'une course
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripStatusUpdateRequest'
+      responses:
+        '200':
+          description: Course mise à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /drivers/{driverId}/revenue:
+    get:
+      tags: [Drivers]
+      operationId: getDriverRevenue
+      summary: Revenu d'un chauffeur sur une période
+      parameters:
+        - $ref: '#/components/parameters/DriverId'
+        - $ref: '#/components/parameters/FromRequired'
+        - $ref: '#/components/parameters/ToRequired'
+      responses:
+        '200':
+          description: Revenu et frais de coopérative
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Revenue'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /drivers/{driverId}/statistics:
+    get:
+      tags: [Drivers]
+      operationId: getDriverStatistics
+      summary: Statistiques d'un chauffeur
+      parameters:
+        - $ref: '#/components/parameters/DriverId'
+      responses:
+        '200':
+          description: Statistiques du chauffeur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverStatistics'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /statistics/top-earning-driver:
+    get:
+      tags: [Statistics]
+      operationId: getTopEarningDriver
+      summary: Chauffeur ayant le plus gros revenu sur une période
+      parameters:
+        - $ref: '#/components/parameters/FromRequired'
+        - $ref: '#/components/parameters/ToRequired'
+      responses:
+        '200':
+          description: Meilleur chauffeur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopEarningDriver'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema:
+        type: string
+    DriverId:
+      name: driverId
+      in: path
+      required: true
+      schema:
+        type: string
+    FromOptional:
+      name: from
+      in: query
+      required: false
+      description: Date de début (AAAA-MM-JJ)
+      schema:
+        type: string
+        format: date
+    ToOptional:
+      name: to
+      in: query
+      required: false
+      description: Date de fin (AAAA-MM-JJ)
+      schema:
+        type: string
+        format: date
+    FromRequired:
+      name: from
+      in: query
+      required: true
+      description: Date de début (AAAA-MM-JJ)
+      schema:
+        type: string
+        format: date
+    ToRequired:
+      name: to
+      in: query
+      required: true
+      description: Date de fin (AAAA-MM-JJ)
+      schema:
+        type: string
+        format: date
+
+  responses:
+    BadRequest:
+      description: Requête invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Clé API manquante ou invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: Erreur interne
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    TripStatus:
+      type: string
+      enum: [COMPLETED, CANCELLED]
+
+    DriverRef:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+
+    VehicleRef:
+      type: object
+      properties:
+        id:
+          type: string
+        plateNumber:
+          type: string
+
+    Trip:
+      type: object
+      properties:
+        id:
+          type: string
+        driver:
+          $ref: '#/components/schemas/DriverRef'
+        vehicle:
+          $ref: '#/components/schemas/VehicleRef'
+        tripDate:
+          type: string
+          format: date
+        departureCity:
+          type: string
+        arrivalCity:
+          type: string
+        distanceKm:
+          type: integer
+        billedAmount:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/TripStatus'
+
+    TripUpsertRequest:
+      type: object
+      required: [driverId, vehicleId, tripDate, departureCity, arrivalCity, distanceKm, billedAmount]
+      properties:
+        driverId:
+          type: string
+        vehicleId:
+          type: string
+        tripDate:
+          type: string
+          format: date
+        departureCity:
+          type: string
+        arrivalCity:
+          type: string
+        distanceKm:
+          type: integer
+          minimum: 1
+        billedAmount:
+          type: integer
+          format: int64
+          minimum: 0
+
+    TripStatusUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/TripStatus'
+
+    Revenue:
+      type: object
+      properties:
+        driverId:
+          type: string
+        driverName:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        revenue:
+          type: integer
+          format: int64
+        cooperativeFee:
+          type: integer
+          format: int64
+
+    DriverStatistics:
+      type: object
+      properties:
+        driverId:
+          type: string
+        driverName:
+          type: string
+        completedTrips:
+          type: integer
+        totalDistanceKm:
+          type: integer
+          format: int64
+        averagePricePerKm:
+          type: number
+          format: double
+
+    TopEarningDriver:
+      type: object
+      properties:
+        driverId:
+          type: string
+        driverName:
+          type: string
+        revenue:
+          type: integer
+          format: int64
+
+    Error:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
