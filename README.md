@@ -100,6 +100,33 @@ Les dates sont au format `AAAA-MM-JJ`. La spécification complète est dans [`do
 La CI GitHub Actions (`.github/workflows/ci.yml`) lance les tests sans `KofiaTransApplicationTests` et valide la spécification OpenAPI
 à chaque push et pull request sur `main`.
 
+## Déploiement (Render)
+
+À chaque push sur `main`, une fois les tests, la spec OpenAPI et l'image Docker validés, la CI déclenche
+un déploiement sur [Render](https://render.com) via un *Deploy Hook*.
+
+Mise en place (une seule fois) :
+
+1. Sur Render, créer une base **PostgreSQL**, puis l'initialiser avec `schema.sql` et `data.sql`
+   (voir [Lancement](#lancement), en utilisant l'*External Database URL* fournie par Render).
+2. Créer un **Web Service** à partir de ce dépôt, runtime **Docker** (le `Dockerfile` est à la racine).
+3. Dans *Environment* du Web Service, définir `DATABASE_HOST` (hostname interne de la base),
+   `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` et `API_KEY`. Render fournit `PORT` automatiquement.
+4. Dans *Settings*, mettre **Auto-Deploy** sur `No` (c'est la CI qui déploie, après les tests),
+   puis copier l'URL du **Deploy Hook**.
+5. Sur GitHub : *Settings → Secrets and variables → Actions*, ajouter le secret `RENDER_DEPLOY_HOOK_URL`
+   avec cette URL.
+
+Tant que le secret n'est pas défini, l'étape de déploiement est ignorée (avec un avertissement) sans faire échouer la CI.
+
+Pour lancer l'image en local :
+
+```bash
+docker build -t kofia-trans .
+docker run -p 8081:8081 --add-host=host.docker.internal:host-gateway -e DATABASE_HOST=host.docker.internal -e DATABASE_NAME=kofia_trans \
+  -e DATABASE_USER=postgres -e DATABASE_PASSWORD=postgres -e API_KEY=ma-cle kofia-trans
+```
+
 ## Structure
 
 ```
