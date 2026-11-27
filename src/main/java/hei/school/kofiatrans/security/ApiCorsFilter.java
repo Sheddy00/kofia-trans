@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Runs before {@link ApiKeyFilter} so that browser preflight requests are answered without an API key
+ * Runs before the Spring Security filter chain so that browser preflight requests are answered without a token
  * and error responses (403, 404...) still carry CORS headers.
  */
 @Component
@@ -32,8 +32,8 @@ public class ApiCorsFilter extends CorsFilter {
 
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(origins);
-        configuration.setAllowedMethods(List.of("GET", "PUT", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("x-api-key", "Content-Type"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setMaxAge(Duration.ofHours(1));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
