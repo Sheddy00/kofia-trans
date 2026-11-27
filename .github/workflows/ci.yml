@@ -2,11 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, preprod]
   pull_request:
-    branches: [main]
+    branches: [main, preprod]
 
 jobs:
+  source-branch:
+    name: Source branch is preprod
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only preprod may be merged into main
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "preprod" ]; then
+            echo "::error::Pull requests into main must come from preprod (got '$HEAD_REF')."
+            exit 1
+          fi
+
   build:
     name: Build and test
     runs-on: ubuntu-latest
