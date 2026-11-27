@@ -1,0 +1,27 @@
+-- Initial schema: drivers, vehicles and trips.
+-- Databases created before Flyway already have these tables; they are baselined at version 1 and skip this script.
+CREATE TABLE driver (
+    id VARCHAR(20) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    license_category VARCHAR(1) NOT NULL,
+    affiliation_date DATE NOT NULL
+);
+
+CREATE TABLE vehicle (
+    id VARCHAR(20) PRIMARY KEY,
+    plate_number VARCHAR(20) NOT NULL UNIQUE,
+    type VARCHAR(20) NOT NULL,
+    capacity_tons DOUBLE PRECISION NOT NULL
+);
+
+CREATE TABLE trip (
+    id VARCHAR(20) PRIMARY KEY,
+    driver_id VARCHAR(20) NOT NULL REFERENCES driver (id),
+    vehicle_id VARCHAR(20) NOT NULL REFERENCES vehicle (id),
+    trip_date DATE NOT NULL,
+    departure_city VARCHAR(100) NOT NULL,
+    arrival_city VARCHAR(100) NOT NULL,
+    distance_km INTEGER NOT NULL,
+    billed_amount BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL
+);
