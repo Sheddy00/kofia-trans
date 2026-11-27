@@ -22,6 +22,7 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
 | `DATABASE_USER`     | Utilisateur PostgreSQL                            | `postgres`    |
 | `DATABASE_PASSWORD` | Mot de passe PostgreSQL                           | `postgres`    |
 | `API_KEY`           | Clé attendue dans l'en-tête `x-api-key`           | `ma-cle`      |
+| `CORS_ALLOWED_ORIGINS` | Origines autorisées pour le frontend, séparées par des virgules (défaut : `http://localhost:5173`) | `https://kofia-trans-ui.onrender.com` |
 
 > Si `API_KEY` n'est pas définie, **toutes** les requêtes sont refusées avec `403`.
 
