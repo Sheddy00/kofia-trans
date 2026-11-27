@@ -5,6 +5,7 @@ import hei.school.kofiatrans.exception.ClientException;
 import hei.school.kofiatrans.exception.ServerException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -30,6 +31,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleUnknownRoute(Exception e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponseDto.of(404, "Not Found", "Route introuvable"));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponseDto> handleMethodNotAllowed(HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .headers(e.getHeaders())
+                .body(ErrorResponseDto.of(405, "Method Not Allowed", "Méthode " + e.getMethod() + " non autorisée sur cette route"));
     }
 
     @ExceptionHandler(ServerException.class)
