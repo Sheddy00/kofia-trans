@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS vehicle (
+    id VARCHAR(20) PRIMARY KEY,
+    plate_number VARCHAR(20) NOT NULL UNIQUE,
+    type VARCHAR(20) NOT NULL,
+    capacity_tons DOUBLE PRECISION NOT NULL
+);
