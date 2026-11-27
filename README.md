@@ -27,11 +27,15 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
 
 ## Lancement
 
-1. Créer la base :
+1. Créer la base puis l'initialiser (tables + données de démonstration) :
 
    ```bash
    createdb -U postgres kofia_trans
+   psql -U postgres -d kofia_trans -f src/main/resources/schema.sql
+   psql -U postgres -d kofia_trans -f src/main/resources/data.sql
    ```
+
+   > ⚠️ `schema.sql` commence par supprimer les tables existantes : ne le relancez que pour repartir d'une base vide.
 
 2. Exporter les variables d'environnement :
 
@@ -58,8 +62,8 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
 
 L'API écoute sur **http://localhost:8081**.
 
-> ⚠️ À chaque démarrage, `schema.sql` supprime puis recrée les tables et `data.sql` y insère les données de démonstration
-> (`spring.sql.init.mode=always`). Les données saisies via l'API sont donc perdues au redémarrage.
+> L'application n'exécute pas les scripts SQL au démarrage (`spring.sql.init.mode=never`) :
+> les données saisies via l'API sont conservées entre deux redémarrages.
 
 ## Utilisation
 
