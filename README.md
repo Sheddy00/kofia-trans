@@ -21,10 +21,14 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
 | `DATABASE_NAME`     | Nom de la base                                    | `kofia_trans` |
 | `DATABASE_USER`     | Utilisateur PostgreSQL                            | `postgres`    |
 | `DATABASE_PASSWORD` | Mot de passe PostgreSQL                           | `postgres`    |
-| `API_KEY`           | Clé attendue dans l'en-tête `x-api-key`           | `ma-cle`      |
+| `JWT_SECRET`        | Clé de signature des jetons (**32 caractères minimum**, l'API refuse de démarrer sinon) | `openssl rand -base64 48` |
+| `JWT_EXPIRATION`    | Durée de validité d'un jeton, format ISO-8601 (défaut : `PT8H`) | `PT8H` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Compte administrateur créé au démarrage s'il n'existe pas | `admin` / *secret* |
+| `DEMO_USERNAME` / `DEMO_PASSWORD`   | Compte de démonstration en lecture seule (optionnel) | `demo` / `demo` |
 | `CORS_ALLOWED_ORIGINS` | Origines autorisées pour le frontend, séparées par des virgules (défaut : `http://localhost:5173`) | `https://kofia-trans-ui.onrender.com` |
 
-> Si `API_KEY` n'est pas définie, **toutes** les requêtes sont refusées avec `403`.
+> Les comptes sont créés au démarrage à partir de ces variables, avec un mot de passe haché (BCrypt).
+> Un compte existant n'est jamais modifié : changer `ADMIN_PASSWORD` après coup n'a pas d'effet.
 
 ## Lancement
 
@@ -37,6 +41,8 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
    ```
 
    > ⚠️ `schema.sql` commence par supprimer les tables existantes : ne le relancez que pour repartir d'une base vide.
+   > Sur une base **existante** (antérieure à l'authentification), créez seulement la table des utilisateurs :
+   > `psql ... -f src/main/resources/scripts/tables/create_table_app_user.sql`
 
 2. Exporter les variables d'environnement :
 
@@ -45,7 +51,11 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
    export DATABASE_NAME=kofia_trans
    export DATABASE_USER=postgres
    export DATABASE_PASSWORD=postgres
-   export API_KEY=ma-cle
+   export JWT_SECRET="$(openssl rand -base64 48)"
+   export ADMIN_USERNAME=admin
+   export ADMIN_PASSWORD='choisir-un-mot-de-passe'
+   export DEMO_USERNAME=demo
+   export DEMO_PASSWORD=demo
    ```
 
 3. Démarrer l'application :
@@ -68,16 +78,36 @@ L'API écoute sur **http://localhost:8081**.
 
 ## Utilisation
 
-Toutes les requêtes doivent envoyer l'en-tête `x-api-key` :
+### Authentification
+
+L'API utilise des jetons **JWT** (signés en HS256, valables 8 h par défaut) :
+
+1. `POST /auth/login` avec un identifiant et un mot de passe renvoie un jeton ;
+2. chaque requête envoie ce jeton dans l'en-tête `Authorization: Bearer <jeton>`.
+
+| Rôle     | Droits                                   |
+|----------|------------------------------------------|
+| `ADMIN`  | Lecture et écriture (création, modification, changement de statut) |
+| `VIEWER` | Lecture seule (compte de démonstration)  |
+
+Sans jeton valide, l'API répond `401` ; une écriture avec le rôle `VIEWER` répond `403`.
 
 ```bash
-curl -H "x-api-key: ma-cle" http://localhost:8081/trips
-curl -H "x-api-key: ma-cle" "http://localhost:8081/drivers/d-001/revenue?from=2026-04-01&to=2026-04-30"
-curl -H "x-api-key: ma-cle" "http://localhost:8081/statistics/top-earning-driver?from=2026-04-01&to=2026-04-30"
+TOKEN=$(curl -s -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"choisir-un-mot-de-passe"}' \
+  http://localhost:8081/auth/login | python3 -c "import json,sys; print(json.load(sys.stdin)['accessToken'])")
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/trips
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8081/drivers/d-001/revenue?from=2026-04-01&to=2026-04-30"
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/auth/me
 ```
+
+### Routes
 
 | Méthode | Route                              | Description                                    |
 |---------|------------------------------------|------------------------------------------------|
+| POST    | `/auth/login`                      | Se connecter (public), renvoie un jeton JWT    |
+| GET     | `/auth/me`                         | Utilisateur associé au jeton                   |
 | GET     | `/trips`                           | Lister les courses (filtres `driverId`, `from`, `to`) |
 | PUT     | `/trips/{tripId}`                  | Créer ou remplacer une course                  |
 | PUT     | `/trips/{tripId}/status`           | Modifier le statut (`COMPLETED`, `CANCELLED`)  |
@@ -112,7 +142,8 @@ Mise en place (une seule fois) :
    (voir [Lancement](#lancement), en utilisant l'*External Database URL* fournie par Render).
 2. Créer un **Web Service** à partir de ce dépôt, runtime **Docker** (le `Dockerfile` est à la racine).
 3. Dans *Environment* du Web Service, définir `DATABASE_HOST` (hostname interne de la base),
-   `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` et `API_KEY`. Render fournit `PORT` automatiquement.
+   `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`, `JWT_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`
+   (et éventuellement `DEMO_USERNAME`, `DEMO_PASSWORD`, `CORS_ALLOWED_ORIGINS`). Render fournit `PORT` automatiquement.
 4. Dans *Settings*, mettre **Auto-Deploy** sur `No` (c'est la CI qui déploie, après les tests),
    puis copier l'URL du **Deploy Hook**.
 5. Sur GitHub : *Settings → Secrets and variables → Actions*, ajouter le secret `RENDER_DEPLOY_HOOK_URL`
@@ -125,7 +156,8 @@ Pour lancer l'image en local :
 ```bash
 docker build -t kofia-trans .
 docker run -p 8081:8081 --add-host=host.docker.internal:host-gateway -e DATABASE_HOST=host.docker.internal -e DATABASE_NAME=kofia_trans \
-  -e DATABASE_USER=postgres -e DATABASE_PASSWORD=postgres -e API_KEY=ma-cle kofia-trans
+  -e DATABASE_USER=postgres -e DATABASE_PASSWORD=postgres -e JWT_SECRET="$(openssl rand -base64 48)" \
+  -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD='choisir-un-mot-de-passe' kofia-trans
 ```
 
 ## Structure
@@ -137,8 +169,8 @@ src/main/java/hei/school/kofiatrans/
 ├── db/           # Connexion JDBC et requêtes
 ├── exception/    # Exceptions client / serveur
 ├── model/        # Modèles métier et enums
-├── security/     # Filtre de clé API
-└── service/      # Calculs de revenus et statistiques
+├── security/     # Spring Security, jetons JWT, CORS
+└── service/      # Calculs de revenus, authentification
 src/main/resources/
 ├── schema.sql    # Création des tables
 └── data.sql      # Données de démonstration

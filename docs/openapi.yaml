@@ -5,7 +5,9 @@ info:
   description: |
     API de gestion des courses, chauffeurs et revenus de la coopérative de transport Kofia Trans.
 
-    Toutes les requêtes doivent fournir l'en-tête `x-api-key`. Sans clé valide, l'API répond `403`.
+    Authentification par jeton JWT : obtenez un jeton avec `POST /auth/login`, puis envoyez-le dans
+    l'en-tête `Authorization: Bearer <jeton>`. Sans jeton valide, l'API répond `401`.
+    Rôles : `VIEWER` (lecture seule) et `ADMIN` (lecture et écriture) ; une écriture sans le rôle `ADMIN` répond `403`.
   license:
     name: Proprietary
     url: https://github.com/Sheddy00/kofia-trans
@@ -13,8 +15,10 @@ servers:
   - url: http://localhost:8081
     description: Local
 security:
-  - ApiKeyAuth: []
+  - BearerAuth: []
 tags:
+  - name: Auth
+    description: Connexion et utilisateur courant
   - name: Trips
     description: Courses
   - name: Drivers
@@ -23,6 +27,47 @@ tags:
     description: Statistiques globales
 
 paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Se connecter et obtenir un jeton
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: currentUser
+      summary: Utilisateur associé au jeton
+      responses:
+        '200':
+          description: Utilisateur courant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /trips:
     get:
       tags: [Trips]
@@ -50,8 +95,8 @@ paths:
                   $ref: '#/components/schemas/Trip'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -84,6 +129,8 @@ paths:
                 $ref: '#/components/schemas/Trip'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '500':
@@ -111,6 +158,8 @@ paths:
                 $ref: '#/components/schemas/Trip'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -136,8 +185,8 @@ paths:
                 $ref: '#/components/schemas/Revenue'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -157,8 +206,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DriverStatistics'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -181,8 +230,8 @@ paths:
                 $ref: '#/components/schemas/TopEarningDriver'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -190,10 +239,10 @@ paths:
 
 components:
   securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: x-api-key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 
   parameters:
     TripId:
@@ -248,8 +297,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Jeton absent, invalide ou expiré, ou identifiants incorrects
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     Forbidden:
-      description: Clé API manquante ou invalide
+      description: Action réservée au rôle ADMIN
       content:
         application/json:
           schema:
@@ -268,6 +323,42 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    User:
+      type: object
+      properties:
+        username:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, VIEWER]
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: Durée de validité en secondes
+        expiresAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/User'
+
     TripStatus:
       type: string
       enum: [COMPLETED, CANCELLED]
