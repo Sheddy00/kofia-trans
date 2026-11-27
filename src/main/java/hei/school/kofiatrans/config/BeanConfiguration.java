@@ -6,12 +6,14 @@ import hei.school.kofiatrans.service.RevenueService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import javax.sql.DataSource;
+
 @Configuration
 public class BeanConfiguration {
 
     @Bean
-    public DbConnection dbConnection() {
-        return new DbConnection();
+    public DbConnection dbConnection(DataSource dataSource) {
+        return new DbConnection(dataSource);
     }
 
     @Bean

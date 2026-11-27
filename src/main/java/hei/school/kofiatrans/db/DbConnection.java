@@ -2,25 +2,24 @@ package hei.school.kofiatrans.db;
 
 import hei.school.kofiatrans.exception.ServerException;
 
+import javax.sql.DataSource;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 
+/**
+ * Hands out connections from the pooled {@link DataSource} (HikariCP) configured by Spring Boot
+ * from the {@code spring.datasource.*} properties, instead of opening a new physical connection per query.
+ */
 public class DbConnection {
-    private final static int defaultPort = 5432;
-    private final String host = System.getenv("DATABASE_HOST");
-    private final String user = System.getenv("DATABASE_USER");
-    private final String password = System.getenv("DATABASE_PASSWORD");
-    private final String database = System.getenv("DATABASE_NAME");
-    private final String jdbcUrl;
+    private final DataSource dataSource;
 
-    public DbConnection() {
-        jdbcUrl = "jdbc:postgresql://" + host + ":" + defaultPort + "/" + database;
+    public DbConnection(DataSource dataSource) {
+        this.dataSource = dataSource;
     }
 
     public Connection getConnection() {
         try {
-            return DriverManager.getConnection(jdbcUrl, user, password);
+            return dataSource.getConnection();
         } catch (SQLException e) {
             throw new ServerException(e);
         }
