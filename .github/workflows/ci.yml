@@ -49,3 +49,33 @@ jobs:
 
       - name: Lint docs/openapi.yaml
         run: npx --yes @redocly/cli@1.25.0 lint docs/openapi.yaml
+
+  docker:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build image
+        run: docker build -t kofia-trans:ci .
+
+  deploy:
+    name: Deploy to Render
+    needs: [build, lint-api-spec, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL secret is not set, skipping deployment."
+            exit 0
+          fi
+          curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK_URL"
