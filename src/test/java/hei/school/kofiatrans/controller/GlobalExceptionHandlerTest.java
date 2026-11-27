@@ -7,7 +7,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -35,5 +38,21 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    void unsupportedMethod_shouldReturnMethodNotAllowed() throws Exception {
+        mockMvc.perform(post("/trips"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string("Allow", "GET"))
+                .andExpect(jsonPath("$.status").value(405))
+                .andExpect(jsonPath("$.error").value("Method Not Allowed"));
+    }
+
+    @Test
+    void unsupportedMethodOnTrip_shouldReturnMethodNotAllowed() throws Exception {
+        mockMvc.perform(delete("/trips/t-001"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.status").value(405));
     }
 }
