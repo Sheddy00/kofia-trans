@@ -23,7 +23,7 @@ class ApiCorsFilterTest {
 
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getHeader("Access-Control-Allow-Origin")).isEqualTo(FRONTEND);
-        assertThat(response.getHeader("Access-Control-Allow-Headers")).containsIgnoringCase("x-api-key");
+        assertThat(response.getHeader("Access-Control-Allow-Headers")).containsIgnoringCase("authorization");
         assertThat(chain.getRequest()).isNull();
     }
 
@@ -54,7 +54,7 @@ class ApiCorsFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("OPTIONS", "/trips");
         request.addHeader("Origin", origin);
         request.addHeader("Access-Control-Request-Method", "GET");
-        request.addHeader("Access-Control-Request-Headers", "x-api-key");
+        request.addHeader("Access-Control-Request-Headers", "authorization");
         return request;
     }
 }
