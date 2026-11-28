@@ -3,6 +3,7 @@ package hei.school.kofiatrans.controller;
 import hei.school.kofiatrans.controller.dto.ErrorResponseDto;
 import hei.school.kofiatrans.exception.AuthenticationFailedException;
 import hei.school.kofiatrans.exception.ClientException;
+import hei.school.kofiatrans.exception.ConflictException;
 import hei.school.kofiatrans.exception.ServerException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleAuthenticationFailed(AuthenticationFailedException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ErrorResponseDto.of(401, "Unauthorized", e.getMessage()));
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponseDto> handleConflict(ConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponseDto.of(409, "Conflict", e.getMessage()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
