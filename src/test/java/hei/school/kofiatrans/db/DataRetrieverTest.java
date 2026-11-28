@@ -1,5 +1,6 @@
 package hei.school.kofiatrans.db;
 
+import hei.school.kofiatrans.exception.ConflictException;
 import hei.school.kofiatrans.model.Trip;
 import hei.school.kofiatrans.model.enums.LicenseCategory;
 import hei.school.kofiatrans.model.enums.TripStatus;
@@ -19,6 +20,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -93,5 +95,31 @@ class DataRetrieverTest {
 
         verify(connection).prepareStatement(org.mockito.ArgumentMatchers.contains("JOIN driver d ON d.id = t.driver_id"));
         verify(statement).setString(1, "d-001");
+    }
+
+    @Test
+    void findTripsPage_shouldBindFiltersThenLimitAndOffset() throws Exception {
+        when(resultSet.next()).thenReturn(false);
+
+        dataRetriever.findTripsPage("d-001", LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30), 20, 40);
+
+        verify(connection).prepareStatement(org.mockito.ArgumentMatchers.contains(
+                "WHERE t.driver_id = ? AND t.trip_date >= ? AND t.trip_date <= ? ORDER BY t.trip_date, t.id LIMIT ? OFFSET ?"));
+        verify(statement).setString(1, "d-001");
+        verify(statement).setDate(2, Date.valueOf("2026-04-01"));
+        verify(statement).setDate(3, Date.valueOf("2026-04-30"));
+        verify(statement).setInt(4, 20);
+        verify(statement).setInt(5, 40);
+    }
+
+    @Test
+    void deleteDriver_shouldRefuse_whenTripsReferenceIt() throws Exception {
+        when(resultSet.next()).thenReturn(true);
+        when(resultSet.getInt(1)).thenReturn(4);
+
+        assertThatThrownBy(() -> dataRetriever.deleteDriver("d-001"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("4 course(s)");
+        verify(statement, times(0)).executeUpdate();
     }
 }

@@ -30,7 +30,7 @@ import java.time.Duration;
 
 /**
  * Stateless JWT security: clients get a token from {@code POST /auth/login} and send it as
- * {@code Authorization: Bearer <token>}. Reads need any role, writes ({@code PUT}) need ADMIN.
+ * {@code Authorization: Bearer <token>}. Reads need any role, writes ({@code PUT}, {@code DELETE}) need ADMIN.
  */
 @Configuration
 public class SecurityConfig {
@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
