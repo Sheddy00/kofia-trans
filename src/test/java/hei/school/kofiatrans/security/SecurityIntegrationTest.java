@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -155,5 +156,42 @@ class SecurityIntegrationTest {
                         .header("Access-Control-Request-Headers", "authorization"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "https://kofia-trans-ui.onrender.com"));
+    }
+
+    @Test
+    void deleteAsViewer_shouldReturn403() throws Exception {
+        mockMvc.perform(delete("/drivers/d-001").header("Authorization", bearer(Role.VIEWER)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deleteAsAdmin_shouldReachController() throws Exception {
+        when(dataRetriever.deleteTrip("t-001")).thenReturn(true);
+
+        mockMvc.perform(delete("/trips/t-001").header("Authorization", bearer(Role.ADMIN)))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void conflictOnDelete_shouldReturn409Json() throws Exception {
+        when(dataRetriever.deleteVehicle("v-001"))
+                .thenThrow(new hei.school.kofiatrans.exception.ConflictException("Impossible de supprimer ce véhicule"));
+
+        mockMvc.perform(delete("/vehicles/v-001").header("Authorization", bearer(Role.ADMIN)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
+    void pagedTrips_shouldExposeTotalCountToTheBrowser() throws Exception {
+        when(dataRetriever.countTrips(null, null, null)).thenReturn(21L);
+        when(dataRetriever.findTripsPage(null, null, null, 5, 0)).thenReturn(List.of());
+
+        mockMvc.perform(get("/trips").param("size", "5")
+                        .header("Authorization", bearer(Role.VIEWER))
+                        .header("Origin", "https://kofia-trans-ui.onrender.com"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "21"))
+                .andExpect(header().string("Access-Control-Expose-Headers", "X-Total-Count"));
     }
 }
