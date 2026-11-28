@@ -1,3 +1,4 @@
+-- Application accounts for JWT authentication (passwords are BCrypt hashes).
 CREATE TABLE IF NOT EXISTS app_user (
     username VARCHAR(50) PRIMARY KEY,
     password_hash VARCHAR(100) NOT NULL,

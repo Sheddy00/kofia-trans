@@ -1,15 +1,20 @@
+-- Demo data (5 drivers, 4 vehicles, 16 trips). Only applied when FLYWAY_LOCATIONS includes classpath:db/demo.
+-- Idempotent: existing rows are left untouched.
+
 INSERT INTO driver (id, name, license_category, affiliation_date) VALUES
     ('d-001', 'Rakoto Jean', 'C', '2022-01-15'),
     ('d-002', 'Hery Randria', 'C', '2022-06-01'),
     ('d-003', 'Naina Rabe', 'D', '2023-03-10'),
     ('d-004', 'Tojo Andria', 'B', '2024-09-05'),
-    ('d-005', 'Fara Rasoa', 'C', '2025-02-20');
+    ('d-005', 'Fara Rasoa', 'C', '2025-02-20')
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO vehicle (id, plate_number, type, capacity_tons) VALUES
     ('v-001', 'TAA-1001', 'CAMION', 12.5),
     ('v-002', 'TAA-1002', 'CAMION', 8.0),
     ('v-003', 'TBB-2001', 'FOURGON', 3.5),
-    ('v-004', 'TCC-3001', 'BENNE', 20.0);
+    ('v-004', 'TCC-3001', 'BENNE', 20.0)
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO trip (id, driver_id, vehicle_id, trip_date, departure_city, arrival_city, distance_km, billed_amount, status) VALUES
     ('t-001', 'd-001', 'v-001', '2026-04-02', 'Antananarivo', 'Toamasina', 350, 2800000, 'COMPLETED'),
@@ -27,4 +32,5 @@ INSERT INTO trip (id, driver_id, vehicle_id, trip_date, departure_city, arrival_
     ('t-013', 'd-005', 'v-002', '2026-05-04', 'Antananarivo', 'Toamasina', 350, 2800000, 'COMPLETED'),
     ('t-014', 'd-005', 'v-002', '2026-05-11', 'Toamasina', 'Antananarivo', 350, 2800000, 'COMPLETED'),
     ('t-015', 'd-001', 'v-001', '2026-05-05', 'Antananarivo', 'Mahajanga', 570, 4560000, 'COMPLETED'),
-    ('t-016', 'd-003', 'v-004', '2026-03-28', 'Antananarivo', 'Antsirabe', 170, 1700000, 'COMPLETED');
+    ('t-016', 'd-003', 'v-004', '2026-03-28', 'Antananarivo', 'Antsirabe', 170, 1700000, 'COMPLETED')
+ON CONFLICT (id) DO NOTHING;

@@ -25,6 +25,7 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
 | `JWT_EXPIRATION`    | Durée de validité d'un jeton, format ISO-8601 (défaut : `PT8H`) | `PT8H` |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Compte administrateur créé au démarrage s'il n'existe pas | `admin` / *secret* |
 | `DEMO_USERNAME` / `DEMO_PASSWORD`   | Compte de démonstration en lecture seule (optionnel) | `demo` / `demo` |
+| `FLYWAY_LOCATIONS` | Emplacements des migrations (défaut : `classpath:db/migration`) ; ajouter `classpath:db/demo` pour les données de démo | `classpath:db/migration,classpath:db/demo` |
 | `CORS_ALLOWED_ORIGINS` | Origines autorisées pour le frontend, séparées par des virgules (défaut : `http://localhost:5173`) | `https://kofia-trans-ui.onrender.com` |
 
 > Les comptes sont créés au démarrage à partir de ces variables, avec un mot de passe haché (BCrypt).
@@ -32,17 +33,11 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
 
 ## Lancement
 
-1. Créer la base puis l'initialiser (tables + données de démonstration) :
+1. Créer une base vide (les tables sont créées par l'application, voir [Base de données](#base-de-données)) :
 
    ```bash
    createdb -U postgres kofia_trans
-   psql -U postgres -d kofia_trans -f src/main/resources/schema.sql
-   psql -U postgres -d kofia_trans -f src/main/resources/data.sql
    ```
-
-   > ⚠️ `schema.sql` commence par supprimer les tables existantes : ne le relancez que pour repartir d'une base vide.
-   > Sur une base **existante** (antérieure à l'authentification), créez seulement la table des utilisateurs :
-   > `psql ... -f src/main/resources/scripts/tables/create_table_app_user.sql`
 
 2. Exporter les variables d'environnement :
 
@@ -56,6 +51,7 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
    export ADMIN_PASSWORD='choisir-un-mot-de-passe'
    export DEMO_USERNAME=demo
    export DEMO_PASSWORD=demo
+   export FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/demo   # optionnel : données de démonstration
    ```
 
 3. Démarrer l'application :
@@ -73,8 +69,21 @@ L'application lit sa configuration dans les variables d'environnement suivantes 
 
 L'API écoute sur **http://localhost:8081**.
 
-> L'application n'exécute pas les scripts SQL au démarrage (`spring.sql.init.mode=never`) :
-> les données saisies via l'API sont conservées entre deux redémarrages.
+## Base de données
+
+Le schéma est géré par **Flyway** : au démarrage, l'application applique automatiquement les migrations
+versionnées de `src/main/resources/db/migration` qui ne l'ont pas encore été. Aucune commande `psql` n'est nécessaire.
+
+| Migration | Contenu |
+|-----------|---------|
+| `V1__create_fleet_tables.sql` | Tables `driver`, `vehicle`, `trip` |
+| `V2__create_app_user.sql`     | Table `app_user` (comptes et mots de passe BCrypt) |
+| `db/demo/R__demo_data.sql`    | Données de démonstration (optionnelles, rejouables, n'écrasent rien) |
+
+- Une base créée **avant Flyway** est automatiquement enregistrée à la version 1 : seules les migrations suivantes
+  s'appliquent, sans toucher aux données existantes.
+- Les données de démonstration ne sont chargées que si `FLYWAY_LOCATIONS` contient `classpath:db/demo`.
+- Pour faire évoluer le schéma, ajoutez un nouveau fichier `V3__description.sql` ; ne modifiez jamais une migration déjà appliquée.
 
 ## Utilisation
 
@@ -138,8 +147,8 @@ un déploiement sur [Render](https://render.com) via un *Deploy Hook*.
 
 Mise en place (une seule fois) :
 
-1. Sur Render, créer une base **PostgreSQL**, puis l'initialiser avec `schema.sql` et `data.sql`
-   (voir [Lancement](#lancement), en utilisant l'*External Database URL* fournie par Render).
+1. Sur Render, créer une base **PostgreSQL** (les tables seront créées par Flyway au premier démarrage ;
+   ajouter `FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/demo` pour y charger les données de démonstration).
 2. Créer un **Web Service** à partir de ce dépôt, runtime **Docker** (le `Dockerfile` est à la racine).
 3. Dans *Environment* du Web Service, définir `DATABASE_HOST` (hostname interne de la base),
    `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`, `JWT_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`
@@ -172,6 +181,7 @@ src/main/java/hei/school/kofiatrans/
 ├── security/     # Spring Security, jetons JWT, CORS
 └── service/      # Calculs de revenus, authentification
 src/main/resources/
-├── schema.sql    # Création des tables
-└── data.sql      # Données de démonstration
+└── db/
+    ├── migration/  # Migrations Flyway versionnées (schéma)
+    └── demo/       # Données de démonstration optionnelles
 ```
