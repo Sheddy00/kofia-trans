@@ -1,5 +1,6 @@
 package hei.school.kofiatrans.db;
 
+import hei.school.kofiatrans.exception.ConflictException;
 import hei.school.kofiatrans.exception.ServerException;
 import hei.school.kofiatrans.model.Driver;
 import hei.school.kofiatrans.model.Trip;
@@ -28,6 +29,9 @@ public class DataRetriever {
             + "FROM trip t "
             + "JOIN driver d ON d.id = t.driver_id "
             + "JOIN vehicle v ON v.id = t.vehicle_id";
+
+    private static final String UNIQUE_VIOLATION = "23505";
+    private static final String FOREIGN_KEY_VIOLATION = "23503";
 
     private final DbConnection dbConnection;
 
@@ -188,6 +192,166 @@ public class DataRetriever {
             throw new ServerException(e);
         }
         return findTripById(tripId);
+    }
+
+    public List<Vehicle> findAllVehicles() {
+        String sql = "SELECT id, plate_number, type, capacity_tons FROM vehicle ORDER BY plate_number";
+        try (Connection connection = dbConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            List<Vehicle> vehicles = new ArrayList<>();
+            while (resultSet.next()) {
+                vehicles.add(mapVehicle(resultSet));
+            }
+            return vehicles;
+        } catch (SQLException e) {
+            throw new ServerException(e);
+        }
+    }
+
+    public Driver saveDriver(Driver driver) {
+        String sql = "INSERT INTO driver (id, name, license_category, affiliation_date) VALUES (?, ?, ?, ?) "
+                + "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, "
+                + "license_category = EXCLUDED.license_category, affiliation_date = EXCLUDED.affiliation_date";
+        try (Connection connection = dbConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, driver.getId());
+            statement.setString(2, driver.getName());
+            statement.setString(3, driver.getLicenseCategory().name());
+            statement.setDate(4, Date.valueOf(driver.getAffiliationDate()));
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new ServerException(e);
+        }
+        return findDriverById(driver.getId());
+    }
+
+    /** Deletes the driver; returns false when it does not exist. Refused while trips still reference it. */
+    public boolean deleteDriver(String id) {
+        int trips = countReferences("SELECT COUNT(*) FROM trip WHERE driver_id = ?", id);
+        if (trips > 0) {
+            throw new ConflictException("Impossible de supprimer ce chauffeur : " + trips + " course(s) y sont rattachées");
+        }
+        return deleteById("DELETE FROM driver WHERE id = ?", id);
+    }
+
+    public Vehicle saveVehicle(Vehicle vehicle) {
+        String sql = "INSERT INTO vehicle (id, plate_number, type, capacity_tons) VALUES (?, ?, ?, ?) "
+                + "ON CONFLICT (id) DO UPDATE SET plate_number = EXCLUDED.plate_number, "
+                + "type = EXCLUDED.type, capacity_tons = EXCLUDED.capacity_tons";
+        try (Connection connection = dbConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, vehicle.getId());
+            statement.setString(2, vehicle.getPlateNumber());
+            statement.setString(3, vehicle.getType().name());
+            statement.setDouble(4, vehicle.getCapacityTons());
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            if (UNIQUE_VIOLATION.equals(e.getSQLState())) {
+                throw new ConflictException("La plaque " + vehicle.getPlateNumber() + " est déjà utilisée par un autre véhicule");
+            }
+            throw new ServerException(e);
+        }
+        return findVehicleById(vehicle.getId());
+    }
+
+    /** Deletes the vehicle; returns false when it does not exist. Refused while trips still reference it. */
+    public boolean deleteVehicle(String id) {
+        int trips = countReferences("SELECT COUNT(*) FROM trip WHERE vehicle_id = ?", id);
+        if (trips > 0) {
+            throw new ConflictException("Impossible de supprimer ce véhicule : " + trips + " course(s) y sont rattachées");
+        }
+        return deleteById("DELETE FROM vehicle WHERE id = ?", id);
+    }
+
+    public boolean deleteTrip(String id) {
+        return deleteById("DELETE FROM trip WHERE id = ?", id);
+    }
+
+    /** One page of trips matching the optional filters, oldest first (same order as the unpaginated list). */
+    public List<Trip> findTripsPage(String driverId, LocalDate from, LocalDate to, int limit, int offset) {
+        TripFilter filter = TripFilter.of(driverId, from, to);
+        String sql = TRIP_SELECT + filter.where() + " ORDER BY t.trip_date, t.id LIMIT ? OFFSET ?";
+        try (Connection connection = dbConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            int index = filter.bind(statement);
+            statement.setInt(index, limit);
+            statement.setInt(index + 1, offset);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<Trip> trips = new ArrayList<>();
+                while (resultSet.next()) {
+                    trips.add(mapTrip(resultSet));
+                }
+                return trips;
+            }
+        } catch (SQLException e) {
+            throw new ServerException(e);
+        }
+    }
+
+    public long countTrips(String driverId, LocalDate from, LocalDate to) {
+        TripFilter filter = TripFilter.of(driverId, from, to);
+        String sql = "SELECT COUNT(*) FROM trip t" + filter.where();
+        try (Connection connection = dbConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            filter.bind(statement);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                resultSet.next();
+                return resultSet.getLong(1);
+            }
+        } catch (SQLException e) {
+            throw new ServerException(e);
+        }
+    }
+
+    private int countReferences(String sql, String id) {
+        try (Connection connection = dbConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, id);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                resultSet.next();
+                return resultSet.getInt(1);
+            }
+        } catch (SQLException e) {
+            throw new ServerException(e);
+        }
+    }
+
+    private boolean deleteById(String sql, String id) {
+        try (Connection connection = dbConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, id);
+            return statement.executeUpdate() == 1;
+        } catch (SQLException e) {
+            if (FOREIGN_KEY_VIOLATION.equals(e.getSQLState())) {
+                throw new ConflictException("Suppression impossible : des courses y sont encore rattachées");
+            }
+            throw new ServerException(e);
+        }
+    }
+
+    /** Optional trip filters turned into a parameterised WHERE clause (values are always bound, never concatenated). */
+    private record TripFilter(String driverId, LocalDate from, LocalDate to) {
+        static TripFilter of(String driverId, LocalDate from, LocalDate to) {
+            return new TripFilter(driverId, from, to);
+        }
+
+        String where() {
+            List<String> conditions = new ArrayList<>();
+            if (driverId != null) conditions.add("t.driver_id = ?");
+            if (from != null) conditions.add("t.trip_date >= ?");
+            if (to != null) conditions.add("t.trip_date <= ?");
+            return conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions);
+        }
+
+        /** Binds the filter values in order and returns the next free parameter index. */
+        int bind(PreparedStatement statement) throws SQLException {
+            int index = 1;
+            if (driverId != null) statement.setString(index++, driverId);
+            if (from != null) statement.setDate(index++, Date.valueOf(from));
+            if (to != null) statement.setDate(index++, Date.valueOf(to));
+            return index;
+        }
     }
 
     private Driver mapDriver(ResultSet resultSet) throws SQLException {
