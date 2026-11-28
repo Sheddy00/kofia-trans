@@ -1,8 +1,5 @@
-DROP TABLE IF EXISTS app_user;
-DROP TABLE IF EXISTS trip;
-DROP TABLE IF EXISTS vehicle;
-DROP TABLE IF EXISTS driver;
-
+-- Initial schema: drivers, vehicles and trips.
+-- Databases created before Flyway already have these tables; they are baselined at version 1 and skip this script.
 CREATE TABLE driver (
     id VARCHAR(20) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -27,11 +24,4 @@ CREATE TABLE trip (
     distance_km INTEGER NOT NULL,
     billed_amount BIGINT NOT NULL,
     status VARCHAR(20) NOT NULL
-);
-
-CREATE TABLE app_user (
-    username VARCHAR(50) PRIMARY KEY,
-    password_hash VARCHAR(100) NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
