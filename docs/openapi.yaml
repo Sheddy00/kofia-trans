@@ -7,7 +7,7 @@ info:
 
     Authentification par jeton JWT : obtenez un jeton avec `POST /auth/login`, puis envoyez-le dans
     l'en-tête `Authorization: Bearer <jeton>`. Sans jeton valide, l'API répond `401`.
-    Rôles : `VIEWER` (lecture seule) et `ADMIN` (lecture et écriture) ; une écriture sans le rôle `ADMIN` répond `403`.
+    Rôles : `VIEWER` (lecture seule) et `ADMIN` (lecture et écriture) ; une écriture (`PUT`, `DELETE`) sans le rôle `ADMIN` répond `403`.
   license:
     name: Proprietary
     url: https://github.com/Sheddy00/kofia-trans
@@ -21,6 +21,8 @@ tags:
     description: Connexion et utilisateur courant
   - name: Trips
     description: Courses
+  - name: Fleet
+    description: Chauffeurs et véhicules
   - name: Drivers
     description: Revenus et statistiques par chauffeur
   - name: Statistics
@@ -84,9 +86,29 @@ paths:
             type: string
         - $ref: '#/components/parameters/FromOptional'
         - $ref: '#/components/parameters/ToOptional'
+        - name: page
+          in: query
+          required: false
+          description: Numéro de page (à partir de 0). Avec `page` ou `size`, la réponse est paginée.
+          schema:
+            type: integer
+            minimum: 0
+        - name: size
+          in: query
+          required: false
+          description: Taille de page (1 à 100, 20 par défaut).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         '200':
-          description: Liste des courses
+          description: Liste des courses (une page si `page` ou `size` est fourni)
+          headers:
+            X-Total-Count:
+              description: Nombre total de courses correspondant aux filtres (réponses paginées uniquement)
+              schema:
+                type: integer
           content:
             application/json:
               schema:
@@ -136,6 +158,22 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    delete:
+      tags: [Trips]
+      operationId: deleteTrip
+      summary: Supprimer une course
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '204':
+          description: Course supprimée
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /trips/{tripId}/status:
     put:
       tags: [Trips]
@@ -166,6 +204,176 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /drivers:
+    get:
+      tags: [Fleet]
+      operationId: listDrivers
+      summary: Lister les chauffeurs (triés par nom)
+      responses:
+        '200':
+          description: Chauffeurs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Driver'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /drivers/{driverId}:
+    get:
+      tags: [Fleet]
+      operationId: getDriver
+      summary: Détail d'un chauffeur
+      parameters:
+        - $ref: '#/components/parameters/DriverId'
+      responses:
+        '200':
+          description: Chauffeur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Driver'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Fleet]
+      operationId: upsertDriver
+      summary: Créer ou modifier un chauffeur
+      parameters:
+        - $ref: '#/components/parameters/DriverId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverUpsertRequest'
+      responses:
+        '200':
+          description: Chauffeur modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Driver'
+        '201':
+          description: Chauffeur créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Driver'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Fleet]
+      operationId: deleteDriver
+      summary: Supprimer un chauffeur sans course
+      parameters:
+        - $ref: '#/components/parameters/DriverId'
+      responses:
+        '204':
+          description: Chauffeur supprimé
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /vehicles:
+    get:
+      tags: [Fleet]
+      operationId: listVehicles
+      summary: Lister les véhicules (triés par plaque)
+      responses:
+        '200':
+          description: Véhicules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vehicle'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /vehicles/{vehicleId}:
+    get:
+      tags: [Fleet]
+      operationId: getVehicle
+      summary: Détail d'un véhicule
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      responses:
+        '200':
+          description: Véhicule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Fleet]
+      operationId: upsertVehicle
+      summary: Créer ou modifier un véhicule
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleUpsertRequest'
+      responses:
+        '200':
+          description: Véhicule modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '201':
+          description: Véhicule créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Fleet]
+      operationId: deleteVehicle
+      summary: Supprimer un véhicule sans course
+      parameters:
+        - $ref: '#/components/parameters/VehicleId'
+      responses:
+        '204':
+          description: Véhicule supprimé
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /drivers/{driverId}/revenue:
     get:
@@ -251,6 +459,13 @@ components:
       required: true
       schema:
         type: string
+    VehicleId:
+      name: vehicleId
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 20
     DriverId:
       name: driverId
       in: path
@@ -315,6 +530,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Conflit avec les données existantes (plaque déjà utilisée, ressource encore référencée par des courses)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     InternalServerError:
       description: Erreur interne
       content:
@@ -323,6 +544,65 @@ components:
             $ref: '#/components/schemas/Error'
 
   schemas:
+    Driver:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        licenseCategory:
+          type: string
+          enum: [B, C, D]
+        affiliationDate:
+          type: string
+          format: date
+
+    DriverUpsertRequest:
+      type: object
+      required: [name, licenseCategory, affiliationDate]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        licenseCategory:
+          type: string
+          enum: [B, C, D]
+        affiliationDate:
+          type: string
+          format: date
+
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: string
+        plateNumber:
+          type: string
+        type:
+          type: string
+          enum: [FOURGON, CAMION, BENNE]
+        capacityTons:
+          type: number
+          format: double
+
+    VehicleUpsertRequest:
+      type: object
+      required: [plateNumber, type, capacityTons]
+      properties:
+        plateNumber:
+          type: string
+          maxLength: 20
+          description: Mise en majuscules par l'API ; doit être unique
+        type:
+          type: string
+          enum: [FOURGON, CAMION, BENNE]
+        capacityTons:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+
     LoginRequest:
       type: object
       required: [username, password]

@@ -78,6 +78,7 @@ versionnées de `src/main/resources/db/migration` qui ne l'ont pas encore été.
 |-----------|---------|
 | `V1__create_fleet_tables.sql` | Tables `driver`, `vehicle`, `trip` |
 | `V2__create_app_user.sql`     | Table `app_user` (comptes et mots de passe BCrypt) |
+| `V3__index_trip_driver_date.sql` | Index sur `trip(driver_id, trip_date)` et `trip(trip_date)` |
 | `db/demo/R__demo_data.sql`    | Données de démonstration (optionnelles, rejouables, n'écrasent rien) |
 
 - Une base créée **avant Flyway** est automatiquement enregistrée à la version 1 : seules les migrations suivantes
@@ -96,10 +97,10 @@ L'API utilise des jetons **JWT** (signés en HS256, valables 8 h par défaut) :
 
 | Rôle     | Droits                                   |
 |----------|------------------------------------------|
-| `ADMIN`  | Lecture et écriture (création, modification, changement de statut) |
+| `ADMIN`  | Lecture et écriture (création, modification, suppression, changement de statut) |
 | `VIEWER` | Lecture seule (compte de démonstration)  |
 
-Sans jeton valide, l'API répond `401` ; une écriture avec le rôle `VIEWER` répond `403`.
+Sans jeton valide, l'API répond `401` ; une écriture (`PUT`, `DELETE`) avec le rôle `VIEWER` répond `403`.
 
 ```bash
 TOKEN=$(curl -s -H "Content-Type: application/json" \
@@ -117,12 +118,24 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/auth/me
 |---------|------------------------------------|------------------------------------------------|
 | POST    | `/auth/login`                      | Se connecter (public), renvoie un jeton JWT    |
 | GET     | `/auth/me`                         | Utilisateur associé au jeton                   |
-| GET     | `/trips`                           | Lister les courses (filtres `driverId`, `from`, `to`) |
+| GET     | `/trips`                           | Lister les courses (filtres `driverId`, `from`, `to` ; pagination `page`, `size`) |
 | PUT     | `/trips/{tripId}`                  | Créer ou remplacer une course                  |
+| DELETE  | `/trips/{tripId}`                  | Supprimer une course                           |
 | PUT     | `/trips/{tripId}/status`           | Modifier le statut (`COMPLETED`, `CANCELLED`)  |
+| GET     | `/drivers`                         | Lister les chauffeurs                          |
+| GET     | `/drivers/{driverId}`              | Détail d'un chauffeur                          |
+| PUT     | `/drivers/{driverId}`              | Créer ou modifier un chauffeur                 |
+| DELETE  | `/drivers/{driverId}`              | Supprimer un chauffeur (409 s'il a des courses) |
+| GET     | `/vehicles`                        | Lister les véhicules                           |
+| GET     | `/vehicles/{vehicleId}`            | Détail d'un véhicule                           |
+| PUT     | `/vehicles/{vehicleId}`            | Créer ou modifier un véhicule (409 si la plaque existe déjà) |
+| DELETE  | `/vehicles/{vehicleId}`            | Supprimer un véhicule (409 s'il a des courses) |
 | GET     | `/drivers/{driverId}/revenue`      | Revenu et frais de coopérative sur une période |
 | GET     | `/drivers/{driverId}/statistics`   | Statistiques d'un chauffeur                    |
 | GET     | `/statistics/top-earning-driver`   | Chauffeur au plus gros revenu sur une période  |
+
+**Pagination** : `GET /trips?page=0&size=20` renvoie une page (taille 1 à 100) et le nombre total de courses
+correspondant aux filtres dans l'en-tête `X-Total-Count`. Sans `page` ni `size`, la liste complète est renvoyée.
 
 Les dates sont au format `AAAA-MM-JJ`. La spécification complète est dans [`docs/openapi.yaml`](docs/openapi.yaml)
 (lisible par exemple sur [editor.swagger.io](https://editor.swagger.io)).
